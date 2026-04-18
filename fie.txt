@@ -1,0 +1,79 @@
+name: 🚀 Build APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger button
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: 📦 Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'npm'
+    
+    - name: 🔧 Install Cordova
+      run: npm install -g cordova@12.0.0 android@12.0.0
+    
+    - name: 🏗️ Prepare www folder
+      run: |
+        mkdir -p www
+        cp -r * www/ 2>/dev/null || true
+        rm -rf www/.git www/.github www/apk.yml www/cordova 2>/dev/null || true
+    
+    - name: ⚙️ Cordova config
+      run: |
+        cat > www/config.xml << 'EOF'
+        <?xml version='1.0' encoding='utf-8'?>
+        <widget id="com.github.yourusername.game" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+            <name>{{ GAME_NAME }}</name>
+            <description>HTML5 Game from GitHub</description>
+            <author email="your@email.com" href="https://github.com/{{ github.repository_owner }}">You</author>
+            <content src="index.html" />
+            <access origin="*" />
+            <allow-intent href="http://*/*" />
+            <allow-intent href="https://*/*" />
+            <allow-intent href="tel:*" />
+            <allow-intent href="sms:*" />
+            <allow-intent href="mailto:*" />
+            <allow-intent href="geo:*" />
+            <platform name="android">
+                <allow-intent href="market:*" />
+                <preference name="Orientation" value="landscape" />
+            </platform>
+            <preference name="DisallowOverscroll" value="true" />
+            <preference name="android-minSdkVersion" value="22" />
+            <preference name="BackupWebStorage" value="none" />
+        </widget>
+        EOF
+    
+    - name: 📱 Add Android
+      run: cd www && cordova platform add android@12
+    
+    - name: 🔨 Build APK
+      run: cd www && cordova build android --release
+    
+    - name: 📥 Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Your-Game-APK
+        path: |
+          www/platforms/android/app/build/outputs/apk/release/*.apk
+          www/platforms/android/app/build/outputs/apk/debug/*.apk
+    
+    - name: 🌟 Auto Release
+      uses: softprops/action-gh-release@v1
+      if: github.event_name != 'pull_request'
+      with:
+        files: |
+          www/platforms/android/app/build/outputs/apk/release/*.apk
+        tag_name: v1.0.${{ github.run_number }}
+        name: Your Game v1.0.${{ github.run_number }}
+        body: |
+          ## 📱 APK Ready!
+          - Built from commit: ${{ github.sha }}
+          - Download from [Artifacts](#artifacts) or [Releases](#releases)
